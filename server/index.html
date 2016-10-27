@@ -1,0 +1,288 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Drone Command Center</title>
+		<style>
+    	* { margin: 0; padding: 0; box-sizing: border-box; }
+    	body { font: 13px Helvetica, Arial; }
+    	<!--form { background: #000; padding: 3px; position: relative; align: top; width: 100%; }
+    	form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+    	form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+    	#messages { list-style-type: none; margin: 0; padding: 0; }
+    	#messages li { padding: 5px 10px; }
+    	#messages li:nth-child(odd) { background: #eee; }
+		#drone_messages { list-style-type: none; margin: 0; padding: 0; }
+		#drone_messages li {padding: 5px 10px; }
+		#drone_messages li:nth-child(odd) { background: #eee; }
+		#wrapper {width: 100%; height: 80%; border: 2px solid red;}
+		#data_wrapper {width: 100%; height: 600px; position:relative; float: top; border: 1px solid blue;}
+		.stream-wrapper{width:69.95%; height:600px; position:relative; float:left;}      
+		#droneinfo_wrapper {width: 29.95%; height: 600px; float: right; border: 2px dashed green;}
+		#log_wrapper {width: 100%; height: 30%; position: relative; float: bottom; border: 1px dashed black;}
+		#log_left {width: 49.95%; height: 200px; position: relative; float: left; overflow: auto; border: 1px solid black;}
+		#log_right {width: 49.95%; height: 200px; position: relative; float: right; overflow: auto; border: 1px solid black;}
+		#renderCanvas {width:100%; height:100%; touch-action: none;}
+	
+		#videoCanvas {width: 69.95%; height: 600px;}
+-->
+
+#Top_Menu {
+	position: absolute;
+	top: 0;
+	width: 100%;
+}
+#onlinedetector {
+	position: relative;
+	float: left;
+}
+#calibration {
+	height: 100%;
+	position: relative;
+	float: left;
+	margin: 10px 5px 10px 20px;
+}
+#tuningdetector {
+	position: relative;
+	float: left;
+	margin: 10px 0 10px 0;
+}
+#PIDform {
+ background: none;
+ margin: 10px 20px 10px 20px;
+ padding: 0;
+ float: right;
+}
+
+h2 h3 {
+	text-align: left;
+}
+
+
+#VideoCanvas {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    overflow: hidden;
+    z-index: -100;
+}
+input {
+	width: 40px;
+}
+	</style>
+	</head>
+<body>
+
+	<div id="Top_Menu">
+		<div id="onlinedetector">
+			<h3>Warbird OFFLINE</h3>
+		</div>
+		<div id="calibration">
+			<button onclick="calibrate()">Calibrate</button>
+		</div>
+		<div id="tuningdetector"></div>
+		<div id="pidmax">
+			<input type="number" id="pidmaxinput" value="40">
+			<button onclick="getPIDmax()">Set</button>
+		</div>
+		<div id="PIDform">
+			P: <input type="number" id="P" value="1.0" size="10">	
+			I: <input type="number" id="I" value="0.0" size="10">
+			D: <input type="number" id="D" value="0.0" size="10">
+			<button onclick="getPIDs()">Send</button>
+		</div>
+	</div>
+
+
+	<div id="VideoCanvas">
+		<!-- VIDEO SOURCE UPDATES HERE -->	
+	</div>
+
+<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<script>
+  var socket = io('http://avela.ddns.net:3000');
+  socket.on('connect', function(){});
+  socket.on('event', function(data){});
+  socket.on('disconnect', function(){});
+</script>
+<script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+<script type="text/javascript">
+var video = document.createElement('img');
+	video.id = 'VideoCanvas_Video';
+	video.position = 'absolute';
+	video.resizable = 'both';
+	video.top = 0;
+	video.left = 0;
+	video.height = $(window).height();
+	video.width = $(window).width();
+	video.draggable = 'false';
+
+var up = 0;
+var down = 0;
+var left = 0;
+var right = 0;
+var forward = 0;
+var backward = 0;
+var clockwise = 0;
+var cclockwise = 0;
+var tune = 0;
+
+var keys = {};
+var converted;
+var converted_temp = 1;
+
+ 
+ socket.on('DroneIP', function(ip){
+	var ip = ip;
+	var iptext = document.getElementById("onlinedetector");
+	iptext.innerHTML= '<h3>Warbird ONLINE </h3><h2>' + ip + '</h2>';
+	video.src = 'http://' + ip + ':8080/stream/video.mjpeg';
+    document.getElementById('VideoCanvas').appendChild(video);
+  });
+  
+function tuning_detector() {
+	var tuningtext = document.getElementById("tuningdetector");
+	if (tune == 1) {
+		tuningtext.innerHTML = '<h3>TUNING ON</h3>';
+	}
+	else if (tune == 0) {
+		tuningtext.innerHTML = '';
+	}
+}
+
+function calibrate() {
+	socket.emit('calibrate', 'true');
+	console.log("Calibration requested");
+}
+
+function getPIDmax() {
+	var max = document.getElementById("pidmaxinput").value;
+	socket.emit('PIDmax', max);
+	console.log("New PID max requested");
+}
+
+function getPIDs() {
+	var Pin = document.getElementById("P").value;
+	var Iin = document.getElementById("I").value;	
+	var Din = document.getElementById("D").value;
+	socket.emit('PIDchange_P', Pin);
+	socket.emit('PIDchange_I', Iin);
+	socket.emit('PIDchange_D', Din);
+	console.log("New PIDs requested: " +' '+ Pin +' '+ Iin +' '+ Din);
+}
+
+$(document).keydown(function(e){
+    keys[e.which] = true
+	addKeys();
+	convertKeys();
+	sendKeys();
+	tuning_detector();
+});
+
+$(document).keyup(function (e) {
+    delete keys[e.which];
+	removeKeys();
+	convertKeys();
+	sendKeys();
+	tuning_detector();
+});
+
+function addKeys() {
+	for (var i in keys) {
+		if (!keys.hasOwnProperty(i)) continue;
+		if (i == 65) {up = 1;}		
+		if (i == 90) {down = 1;}
+		if (i == 100) {left = 1;}
+		if (i == 102) {right = 1;}
+		if (i == 104) {forward = 1;}
+		if (i == 98) {backward = 1;}
+		if (i == 105) {clockwise = 1;}
+		if (i == 103) {cclockwise = 1;}
+		if (i == 84) {tune = 1;}
+	}
+}
+
+function removeKeys() {
+	var upfound = false;
+	var downfound = false;
+	var leftfound = false;
+	var rightfound = false;
+	var forwardfound = false;
+	var backwardfound = false;
+	var clockwisefound = false;
+	var cclockwisefound = false;	
+	var tunefound = false;
+
+	for (var i in keys) {
+		if (i == 65) {upfound = true;}
+        if (i == 90) {downfound = true;}
+        if (i == 100) {leftfound = true;}
+        if (i == 102) {rightfound = true;}
+        if (i == 104) {forwardfound = true;}
+        if (i == 98) {backwardfound = true;}
+		if (i == 103) {cclockwisefound = true;}
+		if (i == 105) {clockwisefound = true;}
+		if (i == 84) {tunefound = true;}
+	}
+
+	if (upfound == false) {up = 0;}
+    if (downfound == false) {down = 0;}
+    if (leftfound == false) {left = 0;}
+    if (rightfound == false) {right = 0;}
+    if (forwardfound == false) {forward = 0;}
+    if (backwardfound == false) {backward = 0;}
+	if (clockwisefound == false) {clockwise = 0;}
+	if (cclockwisefound == false) {cclockwise = 0;}
+	if (tunefound == false) {tune = 0;}
+	}
+
+function convertKeys() {
+	converted = (left +''+ right +''+ forward +''+ backward +''+ cclockwise +''+ clockwise +''+ up +''+ down +''+ tune);
+	console.log(converted)
+}
+
+function sendKeys() {
+	if(converted != converted_temp){
+		socket.emit('KeymapUpdate', converted);
+		converted_temp = converted;
+//		socket.emit('KeymapUpdate', converted_temp);
+	}
+}
+
+
+
+
+var drone_x_axis = 0;
+var drone_y_axis = 0;
+
+// socket.on('KeymapUpdate', function(msg){
+//	$('#messages').append($('<li>').text(msg));
+//});
+
+ //   socket.connect('http://avela.ddns.net:3000'); 
+
+//  $('form').submit(function(){
+//    socket.emit('client_messages', $('#m').val());
+//    $('#m').val('');
+//    return false;
+//  });
+//function scrollBottom() {
+//$('#log_left').scrollTop($('#log_left')[0].scrollHeight);
+//$('#log_right').scrollTop($('#log_right')[0].scrollHeight);
+//}
+
+ //socket.on('IOrequest', function(msg){
+ //   $('#drone_messages').append($('<li>').text(msg));
+ // });
+</script>
+<script type="text/javascript" src="scripts/jsmpg.js"></script>
+<script type="text/javascript">
+		// Setup the WebSocket connection and start the player
+//		var client = new WebSocket( 'ws://avela.ddns.net:8084/' );
+
+//		var canvas = document.getElementById('videoCanvas');
+//		var player = new jsmpeg(client, {canvas:canvas});
+</script>
+ </body>
+</html>
