@@ -52,8 +52,85 @@ class var_timer:			# General thread timing and timers in functions
 		self.failsafe = 0
 		self.failsafe_triggered = False
 		self.failsafe_throttle = 0
+	
+
+	
+class var_demand(object):			# For angle calculations and parsing demands
+	def __init__(self):
+		# Initial received keymap
+		self.keymap = '000000000'
+		# Keymap parsed to demands
+		self.left = '0'
+		self.right = '0'
+		self.forward = '0'
+		self.backward = '0'
+		self.cclockwise = '0'
+		self.clockwise = '0'
+		self.up = '0'
+		self.down = '0'
+		self.tune = '0'
+		# Final demand outputs		
+		self.x_angle_demand = 0
+		self.y_angle_demand = 0
+		self.z_angle_demand = 0
+		self.throttle = 0
 		
-class var_pid:						# For PID controllers
+	def check_demand():
+		x_angle_tmp = 0
+		y_angle_tmp = 0
+		desired = 15
+		
+		time_start = time.clock() * 1000
+		timeChange = time_start - timer.lastThrottle
+		if timeChange >= 10:
+			if this.up == '1' and this.down != '1':						# Up
+				this.throttle += 5
+				timer.lastThrottle = time_start
+
+		if this.up != '1' and this.down == '1':							# Down
+			if this.throttle >= -50:
+				this.throttle += -5
+		
+		if this.tune == '1':
+			tune_calibration()
+		else:
+			if this.forward == '1':										# Forward
+				y_angle_tmp += desired
+				x_angle_tmp += -desired
+			if this.backward == '1':										# Backward
+				y_angle_tmp += -desired
+				x_angle_tmp += desired
+			if this.forward == '0' and this.backward == '0':
+				y_angle_tmp = 0
+				x_angle_tmp = 0
+			
+			if this.left == '1' and this.right == '0':					# Left
+				if x_angle_tmp == -desired or x_angle_tmp == desired:				# If Forward/Backward set
+					y_angle_tmp += -desired
+				else:														# If not set
+					x_angle_tmp += -desired
+					y_angle_tmp += -desired
+			if this.right == '1' and this.left == '0':					# Right
+				if y_angle_tmp == -desired or y_angle_tmp == desired:				# If Forward/Backward set
+					x_angle_tmp += desired
+				else:														# If not set
+					x_angle_tmp += desired
+					y_angle_tmp += desired
+		
+			if this.cclockwise == '1' and this.clockwise == '0' :
+				this.z_angle_demand = 8
+			elif this.clockwise == '1' and this.cclockwise == '0' :
+				this.z_angle_demand = -8
+			elif this.cclockwise == '0' or this.clockwise == '0' :
+				this.z_angle_demand = 0
+				
+			this.x_angle_demand = x_angle_tmp
+			this.y_angle_demand = y_angle_tmp		
+		
+
+		
+		
+class var_pid(var_demand):						# For PID controllers
 	def __init__(self):
 		# General PID adjustments
 		self.SampleTime = 2
@@ -120,28 +197,27 @@ class var_pid:						# For PID controllers
 		self.ki_yaw = Ki# * SampleTimeInSec
 		self.kd_yaw = Kd# / SampleTimeInSec
 			
+	def SetSampleTime(self, NewSampleTime):
+		if NewSampleTime > 0:
+			self.ratio = NewSampleTime / self.SampleTime
+			self.ki *= self.ratio
+			self.kd /= self.ratio
+			self.ki_yaw *= self.ratio
+			self.kd_yaw /= self.ratio
+			self.SampleTime = NewSampleTime
+			
+	
+	
+	
 			
 
-class var_demand:			# For angle calculations and parsing demands
-	def __init__(self):
-		# Initial received keymap
-		self.keymap = '000000000'
-		# Keymap parsed to demands
-		self.left = '0'
-		self.right = '0'
-		self.forward = '0'
-		self.backward = '0'
-		self.cclockwise = '0'
-		self.clockwise = '0'
-		self.up = '0'
-		self.down = '0'
-		self.tune = '0'
-		# Final demand outputs		
-		self.x_angle_demand = 0
-		self.y_angle_demand = 0
-		self.z_angle_demand = 0
-		self.throttle = 0
 
+		
+		
+		
+		
+		
+		
 class var_gyro:
 	def __init__(self):		
 		self.PI = 3.14159265
@@ -176,6 +252,191 @@ class var_gyro:
 		self.acc_xRot_median = [0] * 5
 		self.acc_xRot_median = [0] * 5
 		self.median_i = 0
+		
+	def IMU_init(this):#(samplerate, gresolution):					# Wake the MPU-6050 up as it starts in sleep mode
+		ready = False
+		while ready == False:
+			try:
+				this.mpu6050 = MPU6050()									# var init. KEEP HERE, MIGHT FAIL OTHERWISE
+				this.mpu6050.setup()
+				print ("IMU OK: init complete")
+				#mpu6050.setSampleRate(samplerate)							# 100 probably ok
+				#mpu6050.setGResolution(gresolution)							# 2g for lessening vibration
+				ready = True											# Let us know if setup successful
+			except:
+				print ("IMU error: init failed")
+				# If setup fails, try again
+		time.sleep(0.01)
+
+	def getEulerAngles(this, fax, fay, faz):
+		#---------------------------------------------------------------------------
+		# What's the angle in the x and y plane from horizonal?
+		#---------------------------------------------------------------------------
+
+		roll= math.atan2(fax, math.pow(math.pow(fay, 2) + math.pow(faz, 2), 0.5))
+		pitch = math.atan2(fay, math.pow(math.pow(fax, 2) + math.pow(faz, 2), 0.5))
+		yaw = math.atan2(math.pow(math.pow(fax, 2) + math.pow(fay, 2), 0.5), faz)
+
+		roll *=  (180 / math.pi)
+		pitch *=  (180 / math.pi)
+		yaw *=  (180 / math.pi)
+
+		return pitch, roll, yaw	
+		
+	def IMU_calibrate(this):										# Update IMU offsets
+		print ("IMU OK: Calibration init..")
+		time.sleep(1)
+		g=9.80665 #m/s^2
+		ax_offset = 0.0
+		ay_offset = 0.0
+		az_offset = 0.0
+		gx_offset = 0.0
+		gy_offset = 0.0
+		gz_offset = 0.0
+
+		for loop_count in range(0, 100):
+			newData = False
+			while newData != True:
+				try:
+					while (this.mpu6050.readStatus() & 1)==0 :
+						pass
+				except:
+					time.sleep(0.001)								# Sleep 1ms before trying again
+				try: 
+					offset = this.mpu6050.readData()
+					gx_offset += offset.Gx
+					gy_offset += offset.Gy
+					gz_offset += offset.Gz
+					ax_offset += offset.Accx
+					ay_offset += offset.Accy
+					az_offset += offset.Accz
+					time.sleep(0.01)
+					newData = True
+				except:
+					print("IMU error: calibration loop")
+
+		this.gyro_offset_x = gx_offset / 100
+		this.gyro_offset_y = gy_offset / 100
+		this.gyro_offset_z = gz_offset / 100
+
+		this.acc_offset_x = ax_offset / 100
+		this.acc_offset_y = ay_offset / 100
+		this.acc_offset_z = az_offset / 100
+
+		this.__k_norm = math.pow((this.acc_offset_x),2) + math.pow((this.acc_offset_y),2) + math.pow((this.acc_offset_z),2)
+		this.__k_norm = this.__k_norm/math.pow((g),2)
+		this.__k_norm = float(math.pow((this.__k_norm),0.5))
+
+		#	print 'k write:' + str(sensor.__k_norm)
+		print("IMU OK: Calibration complete")
+		IMU_save_calibration()										# Save offset data to file
+		
+	def IMU_save_calibration(self):
+		print("IMU OK: Offset save init..")
+		save_ok = False
+		while save_ok == False:
+			try:
+				savefile = open('/home/terminal/offset_data', 'w')
+				savefile.write(str(this.gyro_offset_x) +":"+ str(this.gyro_offset_y) +":"+ str(this.gyro_offset_z) +":"+ str(this.acc_offset_x) +":"+ str(this.acc_offset_y) +":"+ str(this.acc_offset_z) +":"+ str(this.__k_norm))
+				savefile.close()
+				save_ok = True
+			except:
+				print("IMU error: Saving offset data failed")
+				time.sleep(0.01)
+		print("IMU OK: Offsets saved")
+		#IMU_load_calibration()		# Load saved offsets instantly into IMU		
+
+	def IMU_load_calibration(self):
+		print("IMU OK: Loading offsets init..")									# Load offset data from file
+		load_ok = False
+		while load_ok == False:
+			try:
+				savefile = open('/home/terminal/offset_data', 'r')
+				data = savefile.readlines()
+				for line in data:
+					offset_data = [0] * 7
+					offset_data = line.split(':')
+				this.gyro_offset_x = float(offset_data[0])
+				this.gyro_offset_y = float(offset_data[1])
+				this.gyro_offset_z = float(offset_data[2])
+				this.acc_offset_x = float(offset_data[3])
+				this.acc_offset_y = float(offset_data[4])
+				this.acc_offset_z = float(offset_data[5])
+				this.__k_norm = float(offset_data[6])
+				load_ok = True
+				#sensor.__k_norm = float(offset_data[6])
+				#sensor.mpu6050.readOffsets(sensor.acc_offset_x, sensor.acc_offset_y, sensor.acc_offset_z, sensor.gyro_offset_x, sensor.gyro_offset_y, sensor.gyro_offset_z, sensor.__k_norm)
+			except:
+				print("IMU error: Loading offsets failed")
+				time.sleep(0.01)		# Wait 10ms before trying again
+		print("IMU OK: Offsets loaded")
+		
+	def tune_calibration(self):
+		time_start = time.clock() * 1000
+		timeChange = time_start - timer.lastCalib
+		if timeChange >= 20:
+			if demand.forward == '1' and demand.backward == '0':
+				this.acc_offset_x += 0.1
+				this.acc_offset_y += -0.1
+			if demand.backward == '1' and demand.forward == '0':
+				this.acc_offset_x += -0.1
+				this.acc_offset_y += 0.1
+			if demand.left == '1' and demand.right == '0':
+				this.acc_offset_x += 0.1
+				this.acc_offset_y += 0.1
+			if demand.right == '1' and demand.left == '0':
+				this.acc_offset_x += -0.1
+				this.acc_offset_y += -0.1
+			
+			this.mpu6050.readOffsets(this.acc_offset_x, this.acc_offset_y, this.acc_offset_z, this.gyro_offset_x, this.gyro_offset_y, this.gyro_offset_z, this.__k_norm)
+			timer.lastCalib = time_start
+
+	def IMU_convert_data(self):											# Convert raw IMU data into actual angles
+		now = time.clock() * 1000
+		timer.dtC = (now - timer.acc_dt_start) / 1000
+		timer.acc_dt_start = time.clock() * 1000
+		newData = False
+		while newData != True:
+			try:
+				while (this.mpu6050.readStatus() & 1)==0 :
+					pass
+			except:
+				pass
+			try: 
+				data = this.mpu6050.readData()
+				newData = True
+			except:
+				print("data not found")
+
+		data.Gx = (data.Gx - this.gyro_offset_x) * 100
+		data.Gy = (data.Gy - this.gyro_offset_y) * 100 
+		data.Gz = (data.Gz - this.gyro_offset_z) * 100
+		data.Accx = (data.Accx - this.acc_offset_x)
+		data.Accy = (data.Accy - this.acc_offset_y)
+		data.Accz = (data.Accz - this.acc_offset_z)
+		data.Gx = -data.Gx
+		data.Gy = -data.Gy
+
+		this.zAccel = round(data.Accz,1)
+		RollAcc = -data.Accx
+		PitchAcc = data.Accy
+		# sensor.xRot_temp = 0.9 * (sensor.xRot_temp + (RollAcc * timer.dtC)) + (0.1 * data.Gx)
+		# Only acc data
+		this.xRot_temp = this.xRot_temp + (RollAcc * timer.dtC)
+		this.xRot = round(this.xRot_temp, 1)
+		# sensor.yRot_temp = 0.9 * (sensor.yRot_temp + (PitchAcc * timer.dtC)) + (0.1 * data.Gy)
+		# Only acc data
+		this.yRot_temp = this.yRot_temp + (PitchAcc * timer.dtC)
+		this.yRot = round(this.yRot_temp, 1)
+
+		connection.gyro = str(this.xRot) , str(this.yRot) ,  str(this.zAccel)	# Response to server
+
+		
+		
+		
+		
+		
+		
 class var_motco:
 	def __init__(self):
 		# Motor assignment to GPIO ports
@@ -191,6 +452,13 @@ class var_motco:
 		# Minimum and maximum pulsewidths
 		self.MIN_PW = 1000
 		self.MAX_PW = 1999
+
+
+
+
+		
+		
+
 		
 class var_connection:								# Responses to server
 	def __init__(self):
@@ -228,110 +496,102 @@ class var_connection:								# Responses to server
 
 class drone:
 	### PID FUNCTIONS #######################################################
-	def PID_update_x():
+	
+	def PID_update_x(self):
 		now = time.clock()*1000
-		timeChange = now - pid.lastTime_x
-		if timeChange >= pid.SampleTime:			
-			pid.error_x = demand.x_angle_demand - sensor.xRot
-			pid.P_value_x = round((pid.kp * pid.error_x), 2)
-			pid.D_value_x = round((pid.kd * (pid.error_x - pid.error_x_last)), 2)
-			pid.error_x_last = pid.error_x
+		timeChange = now - self.pid.lastTime_x
+		if timeChange >= self.pid.SampleTime:			
+			self.pid.error_x = self.demand.x_angle_demand - self.sensor.xRot
+			self.pid.P_value_x = round((self.pid.kp * self.pid.error_x), 2)
+			self.pid.D_value_x = round((self.pid.kd * (self.pid.error_x - self.pid.error_x_last)), 2)
+			self.pid.error_x_last = self.pid.error_x
 		
-			pid.ITerm_x = pid.ITerm_x + pid.error_x
-			if pid.ITerm_x > pid.ITerm_max:
-				pid.ITerm_x = pid.ITerm_max
-			elif pid.ITerm_x < pid.ITerm_min:
-				pid.ITerm_x = pid.ITerm_min
-			pid.I_value_x = round((pid.ITerm_x * pid.ki), 2)
+			self.pid.ITerm_x = self.pid.ITerm_x + self.pid.error_x
+			if self.pid.ITerm_x > self.pid.ITerm_max:
+				self.pid.ITerm_x = self.pid.ITerm_max
+			elif self.pid.ITerm_x < self.pid.ITerm_min:
+				self.pid.ITerm_x = self.pid.ITerm_min
+			self.pid.I_value_x = round((self.pid.ITerm_x * self.pid.ki), 2)
 
-			pid.Output_x = round(pid.P_value_x + pid.I_value_x + pid.D_value_x)
-			if pid.Output_x >= 0:
-				pid.Motor_RL = -pid.Output_x
-				pid.Motor_FR = pid.Output_x
+			self.pid.Output_x = round(self.pid.P_value_x + self.pid.I_value_x + self.pid.D_value_x)
+			if self.pid.Output_x >= 0:
+				self.pid.Motor_RL = -self.pid.Output_x
+				self.pid.Motor_FR = self.pid.Output_x
 			else:
-				pid.Motor_RL = -pid.Output_x
-				pid.Motor_FR = pid.Output_x
-			pid.lastTime_x = now
+				self.pid.Motor_RL = -self.pid.Output_x
+				self.pid.Motor_FR = self.pid.Output_x
+			self.pid.lastTime_x = now
 				
 			# Count how many times function gets called per second
-			timer.PIDcount += 1
-			PIDtimeChange = time.clock()*1000 - timer.PIDcount_start
+			self.timer.PIDcount += 1
+			PIDtimeChange = time.clock()*1000 - self.timer.PIDcount_start
 			if PIDtimeChange >= 1000:
-				timer.PIDcountpersec = timer.PIDcount
-				timer.PIDcount = 0
-				timer.PIDcount_start = time.clock()*1000
+				self.timer.PIDcountpersec = self.timer.PIDcount
+				self.timer.PIDcount = 0
+				self.timer.PIDcount_start = time.clock()*1000
 		else:
 			pass
 
-	def PID_update_y():
+
+	def PID_update_y(self):
 		now = time.clock()*1000
-		timeChange = now - pid.lastTime_y
-		if timeChange >= pid.SampleTime:
-			pid.lastTime_y = now			
-			pid.error_y = demand.y_angle_demand - sensor.yRot
-			pid.P_value_y = round((pid.kp * pid.error_y), 2)
-			pid.D_value_y = round((pid.kd * (pid.error_y - pid.error_y_last)), 2)
-			pid.error_y_last = pid.error_y
+		timeChange = now - self.pid.lastTime_y
+		if timeChange >= self.pid.SampleTime:
+			self.pid.lastTime_y = now			
+			self.pid.error_y = self.demand.y_angle_demand - self.sensor.yRot
+			self.pid.P_value_y = round((self.pid.kp * self.pid.error_y), 2)
+			self.pid.D_value_y = round((self.pid.kd * (self.pid.error_y - self.pid.error_y_last)), 2)
+			self.pid.error_y_last = self.pid.error_y
 		
-			pid.ITerm_y = pid.ITerm_y + pid.error_y
-			if pid.ITerm_y > pid.ITerm_max:
-				pid.ITerm_y = pid.ITerm_max
-			elif pid.ITerm_y < pid.ITerm_min:
-				pid.ITerm_y = pid.ITerm_min
-			pid.I_value_y = round((pid.ITerm_y * pid.ki), 2)
+			self.pid.ITerm_y = self.pid.ITerm_y + self.pid.error_y
+			if self.pid.ITerm_y > self.pid.ITerm_max:
+				self.pid.ITerm_y = self.pid.ITerm_max
+			elif self.pid.ITerm_y < self.pid.ITerm_min:
+				self.pid.ITerm_y = self.pid.ITerm_min
+			self.pid.I_value_y = round((self.pid.ITerm_y * self.pid.ki), 2)
 
-			pid.Output_y = round(pid.P_value_y + pid.I_value_y + pid.D_value_y)
-			if pid.Output_y >= 0:
-				pid.Motor_RR = -pid.Output_y
-				pid.Motor_FL = pid.Output_y
+			self.pid.Output_y = round(self.pid.P_value_y + self.pid.I_value_y + self.pid.D_value_y)
+			if self.pid.Output_y >= 0:
+				self.pid.Motor_RR = -self.pid.Output_y
+				self.pid.Motor_FL = self.pid.Output_y
 			else:
-				pid.Motor_RR = -pid.Output_y
-				pid.Motor_FL = pid.Output_y
+				self.pid.Motor_RR = -self.pid.Output_y
+				self.pid.Motor_FL = self.pid.Output_y
 		else:
 			pass
 
-	def PID_update_z():
+	def PID_update_z(self):
 		now = time.clock()*1000
-		timeChange = now - pid.lastTime_z
-		if timeChange >= pid.SampleTime:
-			pid.lastTime_z = now			
-			pid.error_z = demand.z_angle_demand - sensor.zAccel
-			pid.P_value_z = round((pid.kp_yaw * pid.error_z), 2)
-			pid.D_value_z = round((pid.kd_yaw * (pid.error_z - pid.error_z_last)), 2)
-			pid.error_z_last = pid.error_z
+		timeChange = now - self.pid.lastTime_z
+		if timeChange >= self.pid.SampleTime:
+			self.pid.lastTime_z = now			
+			self.pid.error_z = self.demand.z_angle_demand - self.sensor.zAccel
+			self.pid.P_value_z = round((self.pid.kp_yaw * self.pid.error_z), 2)
+			self.pid.D_value_z = round((self.pid.kd_yaw * (self.pid.error_z - self.pid.error_z_last)), 2)
+			self.pid.error_z_last = self.pid.error_z
 		
-			pid.ITerm_z = pid.ITerm_z + pid.error_z
-			if pid.ITerm_z > 15:
-				pid.ITerm_z = 15
-			elif pid.ITerm_z < -15:
-				pid.ITerm_z = -15
-			pid.I_value_z = round((pid.ITerm_z * pid.ki_yaw), 2)
+			self.pid.ITerm_z = self.pid.ITerm_z + self.pid.error_z
+			if self.pid.ITerm_z > 15:
+				self.pid.ITerm_z = 15
+			elif self.pid.ITerm_z < -15:
+				self.pid.ITerm_z = -15
+			self.pid.I_value_z = round((self.pid.ITerm_z * self.pid.ki_yaw), 2)
 
-			pid.Output_z = round(pid.P_value_z + pid.I_value_z + pid.D_value_z)
-			if pid.Output_z >= 0:
-				pid.Motor_FL_yaw = pid.Output_z
-				pid.Motor_RR_yaw = pid.Output_z
-				pid.Motor_FR_yaw = -pid.Output_z
-				pid.Motor_RL_yaw = -pid.Output_z
+			self.pid.Output_z = round(self.pid.P_value_z + self.pid.I_value_z + self.pid.D_value_z)
+			if self.pid.Output_z >= 0:
+				self.pid.Motor_FL_yaw = self.pid.Output_z
+				self.pid.Motor_RR_yaw = self.pid.Output_z
+				self.pid.Motor_FR_yaw = -self.pid.Output_z
+				self.pid.Motor_RL_yaw = -self.pid.Output_z
 			else:
-				pid.Motor_FL_yaw = pid.Output_z
-				pid.Motor_RR_yaw = pid.Output_z
-				pid.Motor_FR_yaw = -pid.Output_z
-				pid.Motor_RL_yaw = -pid.Output_z
+				self.pid.Motor_FL_yaw = self.pid.Output_z
+				self.pid.Motor_RR_yaw = self.pid.Output_z
+				self.pid.Motor_FR_yaw = -self.pid.Output_z
+				self.pid.Motor_RL_yaw = -self.pid.Output_z
 		else:
 			pass
 
 
-
-
-	def SetSampleTime(NewSampleTime):
-		if NewSampleTime > 0:
-			self.ratio = NewSampleTime / pid.SampleTime
-			pid.ki *= self.ratio
-			pid.kd /= self.ratio
-			pid.ki_yaw *= self.ratio
-			pid.kd_yaw /= self.ratio
-			pid.SampleTime = NewSampleTime
 
 	###// END OF PID FUNCTIONS //###########################################
 	########################################################################
@@ -339,163 +599,15 @@ class drone:
 
 	# MPU-6050 GYROSCOPE ###################################################
 
-	def IMU_init():#(samplerate, gresolution):					# Wake the MPU-6050 up as it starts in sleep mode
-		ready = False
-		while ready == False:
-			try:
-				sensor.mpu6050 = MPU6050()									# var init. KEEP HERE, MIGHT FAIL OTHERWISE
-				sensor.mpu6050.setup()
-				print ("IMU OK: init complete")
-				#mpu6050.setSampleRate(samplerate)							# 100 probably ok
-				#mpu6050.setGResolution(gresolution)							# 2g for lessening vibration
-				ready = True											# Let us know if setup successful
-			except:
-				print ("IMU error: init failed")
-				# If setup fails, try again
-		time.sleep(0.01)
+	
 
-	def getEulerAngles(fax, fay, faz):
-			#---------------------------------------------------------------------------
-			# What's the angle in the x and y plane from horizonal?
-			#---------------------------------------------------------------------------
 
-			roll= math.atan2(fax, math.pow(math.pow(fay, 2) + math.pow(faz, 2), 0.5))
-			pitch = math.atan2(fay, math.pow(math.pow(fax, 2) + math.pow(faz, 2), 0.5))
-			yaw = math.atan2(math.pow(math.pow(fax, 2) + math.pow(fay, 2), 0.5), faz)
+	
+	
 
-			roll *=  (180 / math.pi)
-			pitch *=  (180 / math.pi)
-			yaw *=  (180 / math.pi)
+	
 
-			return roll,pitch,yaw
-		
-	def IMU_calibrate():										# Update IMU offsets
-		print ("IMU OK: Calibration init..")
-		time.sleep(1)
-		g=9.80665 #m/s^2
-		ax_offset = 0.0
-		ay_offset = 0.0
-		az_offset = 0.0
-		gx_offset = 0.0
-		gy_offset = 0.0
-		gz_offset = 0.0
-
-		for loop_count in range(0, 100):
-			newData = False
-			while newData != True:
-				try:
-					while (sensor.mpu6050.readStatus() & 1)==0 :
-						pass
-				except:
-					time.sleep(0.001)								# Sleep 1ms before trying again
-				try: 
-					offset = sensor.mpu6050.readData()
-					gx_offset += offset.Gx
-					gy_offset += offset.Gy
-					gz_offset += offset.Gz
-					ax_offset += offset.Accx
-					ay_offset += offset.Accy
-					az_offset += offset.Accz
-					time.sleep(0.01)
-					newData = True
-				except:
-					print("IMU error: calibration loop")
-
-		sensor.gyro_offset_x = gx_offset / 100
-		sensor.gyro_offset_y = gy_offset / 100
-		sensor.gyro_offset_z = gz_offset / 100
-
-		sensor.acc_offset_x = ax_offset / 100
-		sensor.acc_offset_y = ay_offset / 100
-		sensor.acc_offset_z = az_offset / 100
-
-		sensor.__k_norm = math.pow((sensor.acc_offset_x),2) + math.pow((sensor.acc_offset_y),2) + math.pow((sensor.acc_offset_z),2)
-		sensor.__k_norm = sensor.__k_norm/math.pow((g),2)
-		sensor.__k_norm = float(math.pow((sensor.__k_norm),0.5))
-
-	#	print 'k write:' + str(sensor.__k_norm)
-		print("IMU OK: Calibration complete")
-		IMU_save_calibration()										# Save offset data to file
-
-	def IMU_save_calibration():
-		print("IMU OK: Offset save init..")
-		save_ok = False
-		while save_ok == False:
-			try:
-				savefile = open('/home/terminal/offset_data', 'w')
-				savefile.write(str(sensor.gyro_offset_x) +":"+ str(sensor.gyro_offset_y) +":"+ str(sensor.gyro_offset_z) +":"+ str(sensor.acc_offset_x) +":"+ str(sensor.acc_offset_y) +":"+ str(sensor.acc_offset_z) +":"+ str(sensor.__k_norm))
-				savefile.close()
-				save_ok = True
-			except:
-				print("IMU error: Saving offset data failed")
-				time.sleep(0.01)
-		print("IMU OK: Offsets saved")
-		#IMU_load_calibration()		# Load saved offsets instantly into IMU
-
-	def IMU_load_calibration():
-		print("IMU OK: Loading offsets init..")									# Load offset data from file
-		load_ok = False
-		while load_ok == False:
-			try:
-				savefile = open('/home/terminal/offset_data', 'r')
-				data = savefile.readlines()
-				for line in data:
-					offset_data = [0] * 7
-					offset_data = line.split(':')
-				sensor.gyro_offset_x = float(offset_data[0])
-				sensor.gyro_offset_y = float(offset_data[1])
-				sensor.gyro_offset_z = float(offset_data[2])
-				sensor.acc_offset_x = float(offset_data[3])
-				sensor.acc_offset_y = float(offset_data[4])
-				sensor.acc_offset_z = float(offset_data[5])
-				sensor.__k_norm = float(offset_data[6])
-				load_ok = True
-				#sensor.__k_norm = float(offset_data[6])
-				#sensor.mpu6050.readOffsets(sensor.acc_offset_x, sensor.acc_offset_y, sensor.acc_offset_z, sensor.gyro_offset_x, sensor.gyro_offset_y, sensor.gyro_offset_z, sensor.__k_norm)
-			except:
-				print("IMU error: Loading offsets failed")
-				time.sleep(0.01)		# Wait 10ms before trying again
-		print("IMU OK: Offsets loaded")
-
-	def IMU_convert_data():											# Convert raw IMU data into actual angles
-		now = time.clock() * 1000
-		timer.dtC = (now - timer.acc_dt_start) / 1000
-		timer.acc_dt_start = time.clock() * 1000
-		newData = False
-		while newData != True:
-			try:
-				while (sensor.mpu6050.readStatus() & 1)==0 :
-					pass
-			except:
-				pass
-			try: 
-				data = sensor.mpu6050.readData()
-				newData = True
-			except:
-				print("data not found")
-
-		data.Gx = (data.Gx - sensor.gyro_offset_x) * 100
-		data.Gy = (data.Gy - sensor.gyro_offset_y) * 100 
-		data.Gz = (data.Gz - sensor.gyro_offset_z) * 100
-		data.Accx = (data.Accx - sensor.acc_offset_x)
-		data.Accy = (data.Accy - sensor.acc_offset_y)
-		data.Accz = (data.Accz - sensor.acc_offset_z)
-		data.Gx = -data.Gx
-		data.Gy = -data.Gy
-
-		sensor.zAccel = round(data.Accz,1)
-		RollAcc = -data.Accx
-		PitchAcc = data.Accy
-		# sensor.xRot_temp = 0.9 * (sensor.xRot_temp + (RollAcc * timer.dtC)) + (0.1 * data.Gx)
-		# Only acc data
-		sensor.xRot_temp = sensor.xRot_temp + (RollAcc * timer.dtC)
-		sensor.xRot = round(sensor.xRot_temp, 1)
-		# sensor.yRot_temp = 0.9 * (sensor.yRot_temp + (PitchAcc * timer.dtC)) + (0.1 * data.Gy)
-		# Only acc data
-		sensor.yRot_temp = sensor.yRot_temp + (PitchAcc * timer.dtC)
-		sensor.yRot = round(sensor.yRot_temp, 1)
-
-		connection.gyro = str(sensor.xRot) , str(sensor.yRot) ,  str(sensor.zAccel)	# Response to server
+	
 
 	########################################################################
 	########################################################################
@@ -503,77 +615,9 @@ class drone:
 
 	# CHECK ANGLE DEMAND ###################################################
 
-	def check_demand():
-		x_angle_tmp = 0
-		y_angle_tmp = 0
-		desired = 15
-		
-		time_start = time.clock() * 1000
-		timeChange = time_start - timer.lastThrottle
-		if timeChange >= 10:
-			if demand.up == '1' and demand.down != '1':						# Up
-				demand.throttle += 5
-				timer.lastThrottle = time_start
-
-		if demand.up != '1' and demand.down == '1':							# Down
-			if demand.throttle >= -50:
-				demand.throttle += -5
-		
-		if demand.tune == '1':
-			tune_calibration()
-		else:
-			if demand.forward == '1':										# Forward
-				y_angle_tmp += desired
-				x_angle_tmp += -desired
-			if demand.backward == '1':										# Backward
-				y_angle_tmp += -desired
-				x_angle_tmp += desired
-			if demand.forward == '0' and demand.backward == '0':
-				y_angle_tmp = 0
-				x_angle_tmp = 0
+	
 			
-			if demand.left == '1' and demand.right == '0':					# Left
-				if x_angle_tmp == -desired or x_angle_tmp == desired:				# If Forward/Backward set
-					y_angle_tmp += -desired
-				else:														# If not set
-					x_angle_tmp += -desired
-					y_angle_tmp += -desired
-			if demand.right == '1' and demand.left == '0':					# Right
-				if y_angle_tmp == -desired or y_angle_tmp == desired:				# If Forward/Backward set
-					x_angle_tmp += desired
-				else:														# If not set
-					x_angle_tmp += desired
-					y_angle_tmp += desired
-		
-			if demand.cclockwise == '1' and demand.clockwise == '0' :
-				demand.z_angle_demand = 8
-			elif demand.clockwise == '1' and demand.cclockwise == '0' :
-				demand.z_angle_demand = -8
-			elif demand.cclockwise == '0' or demand.clockwise == '0' :
-				demand.z_angle_demand = 0
-				
-			demand.x_angle_demand = x_angle_tmp
-			demand.y_angle_demand = y_angle_tmp
-			
-	def tune_calibration():
-		time_start = time.clock() * 1000
-		timeChange = time_start - timer.lastCalib
-		if timeChange >= 20:
-			if demand.forward == '1' and demand.backward == '0':
-				sensor.acc_offset_x += 0.1
-				sensor.acc_offset_y += -0.1
-			if demand.backward == '1' and demand.forward == '0':
-				sensor.acc_offset_x += -0.1
-				sensor.acc_offset_y += 0.1
-			if demand.left == '1' and demand.right == '0':
-				sensor.acc_offset_x += 0.1
-				sensor.acc_offset_y += 0.1
-			if demand.right == '1' and demand.left == '0':
-				sensor.acc_offset_x += -0.1
-				sensor.acc_offset_y += -0.1
-			
-			sensor.mpu6050.readOffsets(sensor.acc_offset_x, sensor.acc_offset_y, sensor.acc_offset_z, sensor.gyro_offset_x, sensor.gyro_offset_y, sensor.gyro_offset_z, sensor.__k_norm)
-			timer.lastCalib = time_start
+	
 		
 	####################################################################
 	####################################################################
@@ -815,14 +859,14 @@ class drone:
 
 	# MAIN INITIALIZATION ##############################################
 	def __init__(self):
-		terminal = False
+		self.terminal = False
 	#	drone = pigpio.pi()											# IO ports, pigpio-library
-		timer = var_timer()											# General timing class
-		connection = var_connection()									# Class for saving server responses
-		pid = var_pid()												# Class for PID-calculations
-		demand = var_demand()										# Client demands
-		sensor = var_gyro()											# IMU data
-		motco = var_motco()											# Motor controller variables
+		self.timer = var_timer()											# General timing class
+		self.connection = var_connection()									# Class for saving server responses
+		self.pid = var_pid()												# Class for PID-calculations
+		self.demand = var_demand()										# Client demands
+		self.sensor = var_gyro()											# IMU data
+		self.motco = var_motco()											# Motor controller variables
 		asd = 1
 	
 	def set_IMU(self):
