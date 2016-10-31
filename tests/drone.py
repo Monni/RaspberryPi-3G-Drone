@@ -2,7 +2,8 @@
 
 #########################################################################
 #########################################################################
-#  DRONE CODE - REWORKED
+#	DRONE CODE - REWORKED
+#	MIIKA AVELA 2016
 #########################################################################
 #########################################################################
 
@@ -19,13 +20,18 @@ from subprocess import call									# For starting video feed
 #from MPU6050_4 import MPU6050
 #import curses
 
-# GLOBAL DECLARATIONS ###################################################
+###// GLOBAL DECLARATIONS //#############################################
 enable_debug_output = True
 enable_logging = True
 i2c_bus = 1
 device_address = 0x68
 
-# VARIABLE CLASS DECLARATIONS ###########################################
+#########################################################################
+###// CLASS DECLARATIONS //##############################################
+#########################################################################
+
+#########################################################################
+###// Timer class to handle threads and general counting //##############
 class var_timer:			# General thread timing and timers in functions
 	def __init__(self):
 		# Thread timers
@@ -52,9 +58,10 @@ class var_timer:			# General thread timing and timers in functions
 		self.failsafe = 0
 		self.failsafe_triggered = False
 		self.failsafe_throttle = 0
-	
+###// END OF TIMER CLASS //##############################################
 
-	
+#########################################################################
+###// Demand class to handle user demand variables (directions) //#######
 class var_demand(object):			# For angle calculations and parsing demands
 	def __init__(self):
 		# Initial received keymap
@@ -126,11 +133,11 @@ class var_demand(object):			# For angle calculations and parsing demands
 				
 			this.x_angle_demand = x_angle_tmp
 			this.y_angle_demand = y_angle_tmp		
-		
+###// END OF DEMAND CLASS //#############################################
 
-		
-		
-class var_pid(object):				# For PID controllers
+#########################################################################
+###// PID class to handle controller //##################################	
+class var_pid:
 	def __init__(self):
 		# General PID adjustments
 		self.SampleTime = 2
@@ -205,19 +212,10 @@ class var_pid(object):				# For PID controllers
 			self.ki_yaw *= self.ratio
 			self.kd_yaw /= self.ratio
 			self.SampleTime = NewSampleTime
-			
-	
-	
-	
-			
+###// END OF PID CLASS //################################################
 
-
-		
-		
-		
-		
-		
-		
+#########################################################################
+###// Gyro class to handle imu data //###################################	
 class var_gyro:
 	def __init__(self):	
 		self.lastCalib = 0
@@ -433,13 +431,10 @@ class var_gyro:
 		self.yRot = round(self.yRot_temp, 1)
 
 		connection.gyro = str(self.xRot) , str(self.yRot) ,  str(self.zAccel)	# Response to server
+###// END OF PID CLASS //################################################
 
-		
-		
-		
-		
-		
-		
+#########################################################################	
+###// Motco class to keep pwm variables //###############################
 class var_motco:
 	def __init__(self):
 		# Motor assignment to GPIO ports
@@ -455,14 +450,10 @@ class var_motco:
 		# Minimum and maximum pulsewidths
 		self.MIN_PW = 1000
 		self.MAX_PW = 1999
+###// END OF MOTCO CLASS //##############################################
 
-
-
-
-		
-		
-
-		
+#########################################################################	
+###// Connection class to handle connection to server //#################
 class var_connection:								# Responses to server
 	def __init__(self):
 		self.gyro = ''
@@ -491,16 +482,17 @@ class var_connection:								# Responses to server
 		self.socketIO.on('IOanswer', server_response)
 		self.socketIO.wait(0.005)
 		print("Connected to server")
+###// END OF CONNECTION CLASS //#########################################
 
 ####// END OF CLASS DECLARATIONS //######################################
 #########################################################################	
 
 
-	
 
+#########################################################################
+###// Drone class (main class to handle the software) //#################
 class drone:
 	### PID FUNCTIONS #######################################################
-	
 	def pidUpdateX(self):
 		now = time.clock()*1000
 		timeChange = now - self.pid.lastTime_x
@@ -593,41 +585,25 @@ class drone:
 				self.pid.Motor_RL_yaw = -self.pid.Output_z
 		else:
 			pass
-
-
-
-	###// END OF PID FUNCTIONS //###########################################
-	########################################################################
-
-
-	# MPU-6050 GYROSCOPE ###################################################
-
-	
-
-
+	#########################################################################
 	
 	
-
-	
-
-	
-
-	########################################################################
-	########################################################################
-
-
-	# CHECK ANGLE DEMAND ###################################################
-
-	
-			
-	
-		
-	####################################################################
-	####################################################################
+	#########################################################################	
+	### MPU-6050 GYROSCOPE FUNCTIONS ########################################
 
 		
-	### MOTOR FUNCTIONS ################################################
-	## KEEP IN DRONE CLASS
+	#########################################################################
+	
+	
+	#########################################################################	
+	### DEMAND FUNCTIONS ####################################################
+
+	
+	#########################################################################	
+	
+	
+	#########################################################################	
+	### MOTOR FUNCTIONS #####################################################
 	def calibrate_ESC():									# Calibrate ESC on boot. SHOULD ONLY BE MADE ONCE
 		drone.set_servo_pulsewidth(motco.MOTOR1, 2000)
 		drone.set_servo_pulsewidth(motco.MOTOR2, 2000)
@@ -649,8 +625,8 @@ class drone:
 		motco.motorFL_pw = 1000 + demand.throttle + FL + pid.Motor_FL_yaw
 		motco.motorFR_pw = 1000 + demand.throttle + FR + pid.Motor_FR_yaw
 		motco.motorRR_pw = 1000 + demand.throttle + RR + pid.Motor_RR_yaw
-		motco.motorRL_pw = 1000 + demand.throttle + RL + pid.Motor_RL_yaw  + 4
-	# MOTOR 1 - FRONT lEFT	
+		motco.motorRL_pw = 1000 + demand.throttle + RL + pid.Motor_RL_yaw * 1.1 #?????????
+	# MOTOR 1 - FRONT LEFT	
 		if motco.motorFL_pw < motco.MIN_PW:
 			motco.motorFL_pw = motco.MIN_PW
 		elif motco.motorFL_pw > motco.MAX_PW:
@@ -674,13 +650,10 @@ class drone:
 		elif motco.motorRL_pw > motco.MAX_PW:
 			motco.motorRL_pw = motco.MAX_PW
 		drone.set_servo_pulsewidth(motco.MOTOR4, motco.motorRL_pw)
-
-	####################################################################
-	####################################################################
-
-
-	### TCP SOCKET CONNECTION ##########################################
-	## KEEP IN DRONE CLASS
+	#########################################################################	
+	
+	#########################################################################	
+	### TCP SOCKET CONNECTION ###############################################
 	def server_response(*args):
 		failsafe_reset()
 		data = args
@@ -782,15 +755,12 @@ class drone:
 			timer.failsafe_triggered = True
 			timer.failsafe_throttle = demand.throttle
 			demand.throttle = 250
-			
-	####################################################################
-	####################################################################
+	#########################################################################	
 
-
-	### THREADS ########################################################
-
-	### THREAD 1 - COMMUNICATION ###############################	
-	## KEEP IN DRONE CLASS
+	
+	#########################################################################	
+	### THREADS #############################################################
+	# 1 - COMMUNICATION -----------------------------------------------------	
 	# // Sends IMU data, receives control commands, assigns commands to global variables	
 	def thread1():
 		timer.COMMcount_start = time.clock()*1000
@@ -818,8 +788,8 @@ class drone:
 			
 			time.sleep(0.002)
 			timer.time_thread_1 = round((time.clock() * 1000) - time_start)
-
-	### THREAD 2 - MOTOR CONTROL ###############################	
+	
+	# 2 - MOTOR CONTROL -----------------------------------------------------	
 	# // Motor control thread. Read user demands, calculate PID values, Control ESC, FAILSAFE 	
 	def thread2():
 		timer.PIDcount_start = time.clock()*1000
@@ -834,7 +804,7 @@ class drone:
 			time.sleep(0.001)
 			timer.time_thread_2 = round((time.clock()*1000) - time_start)
 				
-	### THREAD 3 - GYROSCOPE ###################################
+	# 3 - GYROSCOPE ---------------------------------------------------------
 	# // Read and parse IMU data
 	def thread3():
 		timer.samplecount_start = time.clock()*1000
@@ -856,14 +826,10 @@ class drone:
 			#time_end = time.clock() * 1000
 			time.sleep(0.0015)		# Sleep for a while to prevent thread crash..
 			timer.time_thread_3 = round((time.clock()*1000) - time_start)
+	#########################################################################	
 
-	####################################################################
-	####################################################################
-
-
-	# MAIN INITIALIZATION ##############################################
+	# MAIN LOGIC ############################################################
 	def __init__(self):
-		self.terminal = False
 	#	drone = pigpio.pi()											# IO ports, pigpio-library
 		self.timer = var_timer()											# General timing class
 		self.connection = var_connection()									# Class for saving server responses
@@ -872,25 +838,23 @@ class drone:
 		self.sensor = var_gyro()											# IMU data
 		self.motco = var_motco()											# Motor controller variables
 	
-	def setImu(self):
-		sensor.imuInit()													# Initialize IMU
-		sensor.imuCalibrate()												# Update IMU offsets and save to file
-		sensor.imuLoadCalibration()										# Load IMU offsets from file
+#		sensor.imuInit()													# Initialize IMU
+#		sensor.imuCalibrate()												# Update IMU offsets and save to file
+#		sensor.imuLoadCalibration()										# Load IMU offsets from file
 		time.sleep(0.01)
-	
 
 #		pid.SetTunings('kp', 0.15)										# PID tunings
 #		pid.SetTunings('ki', 0.02)
 #		pid.SetTunings('kd', 0)
 #		pid.SetTunings_yaw(0.4, 0.01, 0)									# Yaw PID tunings here!
 
-
 #		connection.setIP()
 #		connection.connect()	
 	
 #		calibrate_ESC()
-
-	
+#		startThreads()
+#		terminal()		#which are you using?
+		noTerminal()
 	
 	def startThreads(self):
 		try:
@@ -906,104 +870,101 @@ class drone:
 		time.sleep(0.001)
 		
 	def terminal(self):
-		if terminal == True: #os.isatty(sys.stdin.fileno()):
-												# Below starts CLI for debugging purposes via terminal
-			try:
-				screen = curses.initscr()							# Init CURSES
-				screen.border(0)									# Give cool borders
-				screen.addstr(1, 5,  "DRONE COMMAND CENTER")		# Print stuff..
-				screen.addstr(3, 5,  "PID variables #####")
-				screen.addstr(7, 5,  "Angular error #####")
-				screen.addstr(11, 5, "Gyroscope data ####")
-				screen.addstr(15, 5, "Thread time (ms) #####")
-				screen.addstr(3, 31, "Motor speeds ######")
-				screen.addstr(5, 33, "\\")
-				screen.addstr(6, 34, "\\")
-				screen.addstr(7, 36, "O")
-				screen.addstr(8, 34, "/")
-				screen.addstr(9, 33, "/")
-				screen.addstr(5, 39, "/")
-				screen.addstr(6, 38, "/")
-				screen.addstr(8, 38, "\\")
-				screen.addstr(9, 39, "\\")
-				screen.addstr(15, 31, "1/second ######")
-				screen.addstr(20, 31, "PID values ####")
-				screen.addstr(21, 31, "P:")
-				screen.addstr(22, 31, "I:")
-				screen.addstr(23, 31, "D:")
-					
-				screen.addstr(4, 5, "X:")
-				screen.addstr(5, 5, "Y:")
-				screen.addstr(6, 5, "Z:")
-						
-				screen.addstr(8, 5, "X:")
-				screen.addstr(9, 5, "Y:")
-				screen.addstr(10, 5, "Z:")
-						
-				screen.addstr(12, 5, "X:")
-				screen.addstr(13, 5, "Y:")
-				screen.addstr(14, 5, "Z:")
-					
-				screen.addstr(16, 5, "T1:")
-				screen.addstr(17, 5, "T2:")
-				screen.addstr(18, 5, "T3:")
-				while True:
-					if pid.kp != 0:
-						screen.addstr(1, 31, drone_ip)
-						screen.addstr(1, 45, "READY")
-					elif pid.kp != 1:
-						screen.addstr(1, 31, "booting..")
-						
-					screen.addstr(4, 9, str(pid.Output_x))
-					screen.addstr(5, 9, str(pid.Output_y))
-					screen.addstr(6, 9, str(pid.Output_z))
-						
-					screen.addstr(8, 9, str(pid.error_x))
-					screen.addstr(9, 9, str(pid.error_y))
-					screen.addstr(10, 9, str(pid.error_z))
-						
-					screen.addstr(12, 9, str(sensor.xRot))
-					screen.addstr(13, 9, str(sensor.yRot))
-					screen.addstr(14, 9, str(sensor.zAccel))
-						
-					screen.addstr(16, 9, str(timer.time_thread_1))
-					screen.addstr(17, 9, str(timer.time_thread_2))
-					screen.addstr(18, 9, str(timer.time_thread_3))
-						
-					screen.addstr(16, 32, str(timer.COMMcountpersec))
-					screen.addstr(17, 32, str(timer.PIDcountpersec))
-					screen.addstr(18, 32, str(timer.samplecountpersec))
-						
-					screen.addstr(21, 34, str(pid.P_value_x))
-					screen.addstr(22, 34, str(pid.I_value_x))
-					screen.addstr(23, 34, str(pid.D_value_x))
-						
-					screen.addstr(4, 31, str(motco.motorFL_pw))
-					screen.addstr(4, 38, str(motco.motorFR_pw))
-					screen.addstr(10, 31, str(motco.motorRL_pw))
-					screen.addstr(10, 38, str(motco.motorRR_pw))
-						
-						#screen.addstr(11, 38, str(timer.asd))
-						#screen.addstr(12, 38, str(timer.asd2))
-						
-					screen.refresh()
-					#curses.endwin() # shuts down curse
-
-			except (KeyboardInterrupt, SystemExit):
-				# quit
-				curses.endwin()
-				demand.throttle = 0
-				motorcontrol(0,0,0,0)
-				print("Quitting..")
-				time.sleep(1)
-				exit()
-
-		else:
+		# Start CLI for debugging purposes via terminal
+		try:
+			screen = curses.initscr()							# Init CURSES
+			screen.border(0)									# Give cool borders
+			screen.addstr(1, 5,  "DRONE COMMAND CENTER")		# Print stuff..
+			screen.addstr(3, 5,  "PID variables #####")
+			screen.addstr(7, 5,  "Angular error #####")
+			screen.addstr(11, 5, "Gyroscope data ####")
+			screen.addstr(15, 5, "Thread time (ms) #####")
+			screen.addstr(3, 31, "Motor speeds ######")
+			screen.addstr(5, 33, "\\")
+			screen.addstr(6, 34, "\\")
+			screen.addstr(7, 36, "O")
+			screen.addstr(8, 34, "/")
+			screen.addstr(9, 33, "/")
+			screen.addstr(5, 39, "/")
+			screen.addstr(6, 38, "/")
+			screen.addstr(8, 38, "\\")
+			screen.addstr(9, 39, "\\")
+			screen.addstr(15, 31, "1/second ######")
+			screen.addstr(20, 31, "PID values ####")
+			screen.addstr(21, 31, "P:")
+			screen.addstr(22, 31, "I:")
+			screen.addstr(23, 31, "D:")
+			
+			screen.addstr(4, 5, "X:")
+			screen.addstr(5, 5, "Y:")
+			screen.addstr(6, 5, "Z:")
+			
+			screen.addstr(8, 5, "X:")
+			screen.addstr(9, 5, "Y:")
+			screen.addstr(10, 5, "Z:")
+			
+			screen.addstr(12, 5, "X:")
+			screen.addstr(13, 5, "Y:")
+			screen.addstr(14, 5, "Z:")
+			
+			screen.addstr(16, 5, "T1:")
+			screen.addstr(17, 5, "T2:")
+			screen.addstr(18, 5, "T3:")
 			while True:
-				time.sleep(0.005)
-				pass
-					
+				if pid.kp != 0:
+					screen.addstr(1, 31, drone_ip)
+					screen.addstr(1, 45, "READY")
+				elif pid.kp != 1:
+					screen.addstr(1, 31, "booting..")
 				
+				screen.addstr(4, 9, str(pid.Output_x))
+				screen.addstr(5, 9, str(pid.Output_y))
+				screen.addstr(6, 9, str(pid.Output_z))
+				
+				screen.addstr(8, 9, str(pid.error_x))
+				screen.addstr(9, 9, str(pid.error_y))
+				screen.addstr(10, 9, str(pid.error_z))
+				
+				screen.addstr(12, 9, str(sensor.xRot))
+				screen.addstr(13, 9, str(sensor.yRot))
+				screen.addstr(14, 9, str(sensor.zAccel))
+				
+				screen.addstr(16, 9, str(timer.time_thread_1))
+				screen.addstr(17, 9, str(timer.time_thread_2))
+				screen.addstr(18, 9, str(timer.time_thread_3))
+				
+				screen.addstr(16, 32, str(timer.COMMcountpersec))
+				screen.addstr(17, 32, str(timer.PIDcountpersec))
+				screen.addstr(18, 32, str(timer.samplecountpersec))
+				
+				screen.addstr(21, 34, str(pid.P_value_x))
+				screen.addstr(22, 34, str(pid.I_value_x))
+				screen.addstr(23, 34, str(pid.D_value_x))
+				
+				screen.addstr(4, 31, str(motco.motorFL_pw))
+				screen.addstr(4, 38, str(motco.motorFR_pw))
+				screen.addstr(10, 31, str(motco.motorRL_pw))
+				screen.addstr(10, 38, str(motco.motorRR_pw))
+				
+				#screen.addstr(11, 38, str(timer.asd))
+				#screen.addstr(12, 38, str(timer.asd2))
+				
+				screen.refresh()
+				#curses.endwin() # shuts down curse
+		except (KeyboardInterrupt, SystemExit):
+			# quit
+			curses.endwin()
+			demand.throttle = 0
+			motorcontrol(0,0,0,0)
+			print("Quitting..")
+			time.sleep(1)
+			exit()
+
+	def noTerminal(self):
+		while true:
+			time.sleep(0.001)
+		
+		
 		#while terminal == False:
 		#	time.sleep(0.005)
 		#	os.system('clear')
