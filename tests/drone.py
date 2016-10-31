@@ -8,7 +8,7 @@
 
 import sys
 import os 													# clearia varten
-import _thread
+import thread
 import time
 #import smbus
 import math
@@ -92,7 +92,7 @@ class var_demand(object):			# For angle calculations and parsing demands
 				this.throttle += -5
 		
 		if this.tune == '1':
-			tune_calibration()
+			sensor.tune_calibration()
 		else:
 			if this.forward == '1':										# Forward
 				y_angle_tmp += desired
@@ -130,7 +130,7 @@ class var_demand(object):			# For angle calculations and parsing demands
 
 		
 		
-class var_pid(var_demand):						# For PID controllers
+class var_pid(object):				# For PID controllers
 	def __init__(self):
 		# General PID adjustments
 		self.SampleTime = 2
@@ -219,7 +219,9 @@ class var_pid(var_demand):						# For PID controllers
 		
 		
 class var_gyro:
-	def __init__(self):		
+	def __init__(self):	
+		self.lastCalib = 0
+	
 		self.PI = 3.14159265
 		# setup
 		self.mpu6050 = 0
@@ -253,12 +255,12 @@ class var_gyro:
 		self.acc_xRot_median = [0] * 5
 		self.median_i = 0
 		
-	def IMU_init(this):#(samplerate, gresolution):					# Wake the MPU-6050 up as it starts in sleep mode
+	def imuInit(self):#(samplerate, gresolution):					# Wake the MPU-6050 up as it starts in sleep mode
 		ready = False
 		while ready == False:
 			try:
-				this.mpu6050 = MPU6050()									# var init. KEEP HERE, MIGHT FAIL OTHERWISE
-				this.mpu6050.setup()
+				self.mpu6050 = MPU6050()									# var init. KEEP HERE, MIGHT FAIL OTHERWISE
+				self.mpu6050.setup()
 				print ("IMU OK: init complete")
 				#mpu6050.setSampleRate(samplerate)							# 100 probably ok
 				#mpu6050.setGResolution(gresolution)							# 2g for lessening vibration
@@ -268,7 +270,7 @@ class var_gyro:
 				# If setup fails, try again
 		time.sleep(0.01)
 
-	def getEulerAngles(this, fax, fay, faz):
+	def getEulerAngles(self, fax, fay, faz):
 		#---------------------------------------------------------------------------
 		# What's the angle in the x and y plane from horizonal?
 		#---------------------------------------------------------------------------
@@ -283,7 +285,7 @@ class var_gyro:
 
 		return pitch, roll, yaw	
 		
-	def IMU_calibrate(this):										# Update IMU offsets
+	def imuCalibrate(self):										# Update IMU offsets
 		print ("IMU OK: Calibration init..")
 		time.sleep(1)
 		g=9.80665 #m/s^2
@@ -301,19 +303,20 @@ class var_gyro:
 					while (this.mpu6050.readStatus() & 1)==0 :
 						pass
 				except:
+					print("IMU error: new data not available")
 					time.sleep(0.001)								# Sleep 1ms before trying again
-				try: 
-					offset = this.mpu6050.readData()
-					gx_offset += offset.Gx
-					gy_offset += offset.Gy
-					gz_offset += offset.Gz
-					ax_offset += offset.Accx
-					ay_offset += offset.Accy
-					az_offset += offset.Accz
-					time.sleep(0.01)
-					newData = True
-				except:
-					print("IMU error: calibration loop")
+			try: 
+				offset = this.mpu6050.readData()
+				gx_offset += offset.Gx
+				gy_offset += offset.Gy
+				gz_offset += offset.Gz
+				ax_offset += offset.Accx
+				ay_offset += offset.Accy
+				az_offset += offset.Accz
+				time.sleep(0.01)
+				newData = True
+			except:
+				print("IMU error: calibration loop")
 
 		this.gyro_offset_x = gx_offset / 100
 		this.gyro_offset_y = gy_offset / 100
@@ -329,9 +332,9 @@ class var_gyro:
 
 		#	print 'k write:' + str(sensor.__k_norm)
 		print("IMU OK: Calibration complete")
-		IMU_save_calibration()										# Save offset data to file
+		self.imuSaveCalibration()										# Save offset data to file
 		
-	def IMU_save_calibration(self):
+	def imuSaveCalibration(self):
 		print("IMU OK: Offset save init..")
 		save_ok = False
 		while save_ok == False:
@@ -346,7 +349,7 @@ class var_gyro:
 		print("IMU OK: Offsets saved")
 		#IMU_load_calibration()		# Load saved offsets instantly into IMU		
 
-	def IMU_load_calibration(self):
+	def imuLoadCalibration(self):
 		print("IMU OK: Loading offsets init..")									# Load offset data from file
 		load_ok = False
 		while load_ok == False:
@@ -371,65 +374,65 @@ class var_gyro:
 				time.sleep(0.01)		# Wait 10ms before trying again
 		print("IMU OK: Offsets loaded")
 		
-	def tune_calibration(self):
+	def tuneCalibration(self):
 		time_start = time.clock() * 1000
-		timeChange = time_start - timer.lastCalib
+		timeChange = time_start - self.lastCalib
 		if timeChange >= 20:
 			if demand.forward == '1' and demand.backward == '0':
-				this.acc_offset_x += 0.1
-				this.acc_offset_y += -0.1
+				self.acc_offset_x += 0.1
+				self.acc_offset_y += -0.1
 			if demand.backward == '1' and demand.forward == '0':
-				this.acc_offset_x += -0.1
-				this.acc_offset_y += 0.1
+				self.acc_offset_x += -0.1
+				self.acc_offset_y += 0.1
 			if demand.left == '1' and demand.right == '0':
-				this.acc_offset_x += 0.1
-				this.acc_offset_y += 0.1
+				self.acc_offset_x += 0.1
+				self.acc_offset_y += 0.1
 			if demand.right == '1' and demand.left == '0':
-				this.acc_offset_x += -0.1
-				this.acc_offset_y += -0.1
+				self.acc_offset_x += -0.1
+				self.acc_offset_y += -0.1
 			
-			this.mpu6050.readOffsets(this.acc_offset_x, this.acc_offset_y, this.acc_offset_z, this.gyro_offset_x, this.gyro_offset_y, this.gyro_offset_z, this.__k_norm)
-			timer.lastCalib = time_start
+			self.mpu6050.readOffsets(self.acc_offset_x, self.acc_offset_y, self.acc_offset_z, self.gyro_offset_x, self.gyro_offset_y, self.gyro_offset_z, self.__k_norm)
+			self.lastCalib = time_start
 
-	def IMU_convert_data(self):											# Convert raw IMU data into actual angles
+	def imuConvertData(self):											# Convert raw IMU data into actual angles
 		now = time.clock() * 1000
 		timer.dtC = (now - timer.acc_dt_start) / 1000
 		timer.acc_dt_start = time.clock() * 1000
 		newData = False
 		while newData != True:
 			try:
-				while (this.mpu6050.readStatus() & 1)==0 :
+				while (self.mpu6050.readStatus() & 1)==0 :
 					pass
 			except:
 				pass
 			try: 
-				data = this.mpu6050.readData()
+				data = self.mpu6050.readData()
 				newData = True
 			except:
 				print("data not found")
 
-		data.Gx = (data.Gx - this.gyro_offset_x) * 100
-		data.Gy = (data.Gy - this.gyro_offset_y) * 100 
-		data.Gz = (data.Gz - this.gyro_offset_z) * 100
-		data.Accx = (data.Accx - this.acc_offset_x)
-		data.Accy = (data.Accy - this.acc_offset_y)
-		data.Accz = (data.Accz - this.acc_offset_z)
+		data.Gx = (data.Gx - self.gyro_offset_x) * 100
+		data.Gy = (data.Gy - self.gyro_offset_y) * 100 
+		data.Gz = (data.Gz - self.gyro_offset_z) * 100
+		data.Accx = (data.Accx - self.acc_offset_x)
+		data.Accy = (data.Accy - self.acc_offset_y)
+		data.Accz = (data.Accz - self.acc_offset_z)
 		data.Gx = -data.Gx
 		data.Gy = -data.Gy
 
-		this.zAccel = round(data.Accz,1)
+		self.zAccel = round(data.Accz,1)
 		RollAcc = -data.Accx
 		PitchAcc = data.Accy
 		# sensor.xRot_temp = 0.9 * (sensor.xRot_temp + (RollAcc * timer.dtC)) + (0.1 * data.Gx)
 		# Only acc data
-		this.xRot_temp = this.xRot_temp + (RollAcc * timer.dtC)
-		this.xRot = round(this.xRot_temp, 1)
+		self.xRot_temp = self.xRot_temp + (RollAcc * timer.dtC)
+		self.xRot = round(self.xRot_temp, 1)
 		# sensor.yRot_temp = 0.9 * (sensor.yRot_temp + (PitchAcc * timer.dtC)) + (0.1 * data.Gy)
 		# Only acc data
-		this.yRot_temp = this.yRot_temp + (PitchAcc * timer.dtC)
-		this.yRot = round(this.yRot_temp, 1)
+		self.yRot_temp = self.yRot_temp + (PitchAcc * timer.dtC)
+		self.yRot = round(self.yRot_temp, 1)
 
-		connection.gyro = str(this.xRot) , str(this.yRot) ,  str(this.zAccel)	# Response to server
+		connection.gyro = str(self.xRot) , str(self.yRot) ,  str(self.zAccel)	# Response to server
 
 		
 		
@@ -464,13 +467,13 @@ class var_connection:								# Responses to server
 	def __init__(self):
 		self.gyro = ''
 		self.throttle = 0
-		self.drone_ip = 0
+		self.ip = 0
 		
 	def setIP(self):
 		received = False
 		while received == False:
 			try:
-				self.drone_ip = ni.ifaddresses('ppp0')[2][0]['addr']		# Get IP from system ifaddresses
+				self.ip = ni.ifaddresses('ppp0')[2][0]['addr']		# Get IP from system ifaddresses
 				received = True
 			except:
 				pass
@@ -478,26 +481,27 @@ class var_connection:								# Responses to server
 		print(drone_ip)												# Print IP on boot	
 		
 	def connect(self):
-		socketIO = SocketIO('http://avela.ddns.net', 3000)			# Initializes connection to avela.ddns.net, port 3000
-		socketIO.emit('DRONEboot', self.drone_ip)						# Send IP to server
-		socketIO.on('server_pid_p', server_adjustpid_p)
-		socketIO.on('server_pid_i', server_adjustpid_i)
-		socketIO.on('server_pid_d', server_adjustpid_d)
-		socketIO.on('server_adjustpidmax', server_adjustpidmax)
-		socketIO.on('calibrate', server_calibration)
-		socketIO.on('IOanswer', server_response)
-		socketIO.wait(0.005)
+		self.socketIO = SocketIO('http://avela.ddns.net', 3000)			# Initializes connection to avela.ddns.net, port 3000
+		self.socketIO.emit('DRONEboot', self.ip)						# Send IP to server
+		self.socketIO.on('server_pid_p', server_adjustpid_p)
+		self.socketIO.on('server_pid_i', server_adjustpid_i)
+		self.socketIO.on('server_pid_d', server_adjustpid_d)
+		self.socketIO.on('server_adjustpidmax', server_adjustpidmax)
+		self.socketIO.on('calibrate', server_calibration)
+		self.socketIO.on('IOanswer', server_response)
+		self.socketIO.wait(0.005)
 		print("Connected to server")
 
-		
-
 ####// END OF CLASS DECLARATIONS //######################################
-#########################################################################		
+#########################################################################	
+
+
+	
 
 class drone:
 	### PID FUNCTIONS #######################################################
 	
-	def PID_update_x(self):
+	def pidUpdateX(self):
 		now = time.clock()*1000
 		timeChange = now - self.pid.lastTime_x
 		if timeChange >= self.pid.SampleTime:			
@@ -532,8 +536,7 @@ class drone:
 		else:
 			pass
 
-
-	def PID_update_y(self):
+	def pidUpdateY(self):
 		now = time.clock()*1000
 		timeChange = now - self.pid.lastTime_y
 		if timeChange >= self.pid.SampleTime:
@@ -560,7 +563,7 @@ class drone:
 		else:
 			pass
 
-	def PID_update_z(self):
+	def pidUpdateZ(self):
 		now = time.clock()*1000
 		timeChange = now - self.pid.lastTime_z
 		if timeChange >= self.pid.SampleTime:
@@ -624,7 +627,7 @@ class drone:
 
 		
 	### MOTOR FUNCTIONS ################################################
-
+	## KEEP IN DRONE CLASS
 	def calibrate_ESC():									# Calibrate ESC on boot. SHOULD ONLY BE MADE ONCE
 		drone.set_servo_pulsewidth(motco.MOTOR1, 2000)
 		drone.set_servo_pulsewidth(motco.MOTOR2, 2000)
@@ -677,7 +680,7 @@ class drone:
 
 
 	### TCP SOCKET CONNECTION ##########################################
-
+	## KEEP IN DRONE CLASS
 	def server_response(*args):
 		failsafe_reset()
 		data = args
@@ -714,7 +717,7 @@ class drone:
 		try:
 			temp = data[0].encode('ascii')
 			kp = float(temp)
-			SetTunings('kp', kp)
+			pid.SetTunings('kp', kp)
 			socketIO.emit('logger', "P adjusted to " + str(kp))
 		except:
 			pass
@@ -724,7 +727,7 @@ class drone:
 		try:
 			temp = data[0].encode('ascii')
 			ki = float(temp)
-			SetTunings('ki', ki)
+			pid.SetTunings('ki', ki)
 			socketIO.emit('logger', "I adjusted to " + str(ki))
 		except:
 			pass
@@ -734,7 +737,7 @@ class drone:
 		try:
 			temp = data[0].encode('ascii')
 			kd = float(temp)
-			SetTunings('kd' , kd)
+			pid.SetTunings('kd' , kd)
 			socketIO.emit('logger', "D adjusted to " + str(kd))
 		except:
 			pass
@@ -750,7 +753,7 @@ class drone:
 
 	def server_calibration(*args):
 		data = str(args)
-		IMU_calibrate()											# Calibrate gyroscope 
+		sensor.IMU_calibrate()											# Calibrate gyroscope 
 		socketIO.emit('logger', "IMU calibrated")
 			
 	def server_calibration_tuning(*args):
@@ -787,6 +790,7 @@ class drone:
 	### THREADS ########################################################
 
 	### THREAD 1 - COMMUNICATION ###############################	
+	## KEEP IN DRONE CLASS
 	# // Sends IMU data, receives control commands, assigns commands to global variables	
 	def thread1():
 		timer.COMMcount_start = time.clock()*1000
@@ -822,9 +826,9 @@ class drone:
 		while True:
 			time_start = time.clock() * 1000
 			check_demand()															# Check directions where user wants to go
-			PID_update_x()															# Compute x output
-			PID_update_y()															# Compute y output
-			PID_update_z()															# Compute z output
+			pidUpdateX()															# Compute x output
+			pidUpdateY()															# Compute y output
+			pidUpdateZ()															# Compute z output
 			failsafe()
 			motorcontrol(pid.Motor_FL, pid.Motor_FR, pid.Motor_RR, pid.Motor_RL)	# Commands to motors!
 			time.sleep(0.001)
@@ -838,7 +842,7 @@ class drone:
 		while True:
 			time_start = time.clock() * 1000
 			try:
-				IMU_convert_data()
+				sensor.imuConvertData()
 				count += 1
 			except:
 				pass
@@ -867,13 +871,12 @@ class drone:
 		self.demand = var_demand()										# Client demands
 		self.sensor = var_gyro()											# IMU data
 		self.motco = var_motco()											# Motor controller variables
-		asd = 1
 	
-	def set_IMU(self):
-		IMU_init()													# Initialize IMU
-		IMU_calibrate()												# Update IMU offsets and save to file
-		IMU_load_calibration()										# Load IMU offsets from file
-		time.sleep(0.05)
+	def setImu(self):
+		sensor.imuInit()													# Initialize IMU
+		sensor.imuCalibrate()												# Update IMU offsets and save to file
+		sensor.imuLoadCalibration()										# Load IMU offsets from file
+		time.sleep(0.01)
 	
 
 #		pid.SetTunings('kp', 0.15)										# PID tunings
@@ -882,15 +885,13 @@ class drone:
 #		pid.SetTunings_yaw(0.4, 0.01, 0)									# Yaw PID tunings here!
 
 
-
 #		connection.setIP()
-		
 #		connection.connect()	
 	
-	
-	
-	#	calibrate_ESC()
+#		calibrate_ESC()
 
+	
+	
 	def startThreads(self):
 		try:
 			thread.start_new_thread( thread1, () )
