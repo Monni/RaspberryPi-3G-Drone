@@ -42,7 +42,6 @@ class var_timer:			# General thread timing and timers in functions
 		self.thread1_last_pidvalues = 0.0
 		self.thread1_last = 0.0
 		self.throttle = 0
-		self.lastThrottle = 0
 		self.lastCalib = 0
 		self.acc_dt_start = 0.0
 		# counters
@@ -62,8 +61,10 @@ class var_timer:			# General thread timing and timers in functions
 
 #########################################################################
 ###// Demand class to handle user demand variables (directions) //#######
-class var_demand(object):			# For angle calculations and parsing demands
+class var_demand():			# For angle calculations and parsing demands
 	def __init__(self):
+		# General timings within class
+		self.lastThrottle = 0
 		# Initial received keymap
 		self.keymap = '000000000'
 		# Keymap parsed to demands
@@ -88,51 +89,51 @@ class var_demand(object):			# For angle calculations and parsing demands
 		desired = 15
 		
 		time_start = time.clock() * 1000
-		timeChange = time_start - timer.lastThrottle
+		timeChange = time_start - self.lastThrottle
 		if timeChange >= 10:
-			if this.up == '1' and this.down != '1':						# Up
-				this.throttle += 5
-				timer.lastThrottle = time_start
+			if self.up == '1' and self.down != '1':						# Up
+				self.throttle += 5
+				self.lastThrottle = time_start
 
-		if this.up != '1' and this.down == '1':							# Down
-			if this.throttle >= -50:
-				this.throttle += -5
+		if self.up != '1' and self.down == '1':							# Down
+			if self.throttle >= -50:
+				self.throttle += -5
 		
-		if this.tune == '1':
+		if self.tune == '1':
 			sensor.tune_calibration()
 		else:
-			if this.forward == '1':										# Forward
+			if self.forward == '1':										# Forward
 				y_angle_tmp += desired
 				x_angle_tmp += -desired
-			if this.backward == '1':										# Backward
+			if self.backward == '1':										# Backward
 				y_angle_tmp += -desired
 				x_angle_tmp += desired
-			if this.forward == '0' and this.backward == '0':
+			if self.forward == '0' and self.backward == '0':
 				y_angle_tmp = 0
 				x_angle_tmp = 0
 			
-			if this.left == '1' and this.right == '0':					# Left
+			if self.left == '1' and self.right == '0':					# Left
 				if x_angle_tmp == -desired or x_angle_tmp == desired:				# If Forward/Backward set
 					y_angle_tmp += -desired
 				else:														# If not set
 					x_angle_tmp += -desired
 					y_angle_tmp += -desired
-			if this.right == '1' and this.left == '0':					# Right
+			if self.right == '1' and self.left == '0':					# Right
 				if y_angle_tmp == -desired or y_angle_tmp == desired:				# If Forward/Backward set
 					x_angle_tmp += desired
 				else:														# If not set
 					x_angle_tmp += desired
 					y_angle_tmp += desired
 		
-			if this.cclockwise == '1' and this.clockwise == '0' :
-				this.z_angle_demand = 8
-			elif this.clockwise == '1' and this.cclockwise == '0' :
-				this.z_angle_demand = -8
-			elif this.cclockwise == '0' or this.clockwise == '0' :
-				this.z_angle_demand = 0
+			if self.cclockwise == '1' and self.clockwise == '0' :
+				self.z_angle_demand = 8
+			elif self.clockwise == '1' and self.cclockwise == '0' :
+				self.z_angle_demand = -8
+			elif self.cclockwise == '0' or self.clockwise == '0' :
+				self.z_angle_demand = 0
 				
-			this.x_angle_demand = x_angle_tmp
-			this.y_angle_demand = y_angle_tmp		
+			self.x_angle_demand = x_angle_tmp
+			self.y_angle_demand = y_angle_tmp		
 ###// END OF DEMAND CLASS //#############################################
 
 #########################################################################
@@ -371,66 +372,6 @@ class var_gyro:
 				print("IMU error: Loading offsets failed")
 				time.sleep(0.01)		# Wait 10ms before trying again
 		print("IMU OK: Offsets loaded")
-		
-	def tuneCalibration(self):
-		time_start = time.clock() * 1000
-		timeChange = time_start - self.lastCalib
-		if timeChange >= 20:
-			if demand.forward == '1' and demand.backward == '0':
-				self.acc_offset_x += 0.1
-				self.acc_offset_y += -0.1
-			if demand.backward == '1' and demand.forward == '0':
-				self.acc_offset_x += -0.1
-				self.acc_offset_y += 0.1
-			if demand.left == '1' and demand.right == '0':
-				self.acc_offset_x += 0.1
-				self.acc_offset_y += 0.1
-			if demand.right == '1' and demand.left == '0':
-				self.acc_offset_x += -0.1
-				self.acc_offset_y += -0.1
-			
-			self.mpu6050.readOffsets(self.acc_offset_x, self.acc_offset_y, self.acc_offset_z, self.gyro_offset_x, self.gyro_offset_y, self.gyro_offset_z, self.__k_norm)
-			self.lastCalib = time_start
-
-	def imuConvertData(self):											# Convert raw IMU data into actual angles
-		now = time.clock() * 1000
-		timer.dtC = (now - timer.acc_dt_start) / 1000
-		timer.acc_dt_start = time.clock() * 1000
-		newData = False
-		while newData != True:
-			try:
-				while (self.mpu6050.readStatus() & 1)==0 :
-					pass
-			except:
-				pass
-			try: 
-				data = self.mpu6050.readData()
-				newData = True
-			except:
-				print("data not found")
-
-		data.Gx = (data.Gx - self.gyro_offset_x) * 100
-		data.Gy = (data.Gy - self.gyro_offset_y) * 100 
-		data.Gz = (data.Gz - self.gyro_offset_z) * 100
-		data.Accx = (data.Accx - self.acc_offset_x)
-		data.Accy = (data.Accy - self.acc_offset_y)
-		data.Accz = (data.Accz - self.acc_offset_z)
-		data.Gx = -data.Gx
-		data.Gy = -data.Gy
-
-		self.zAccel = round(data.Accz,1)
-		RollAcc = -data.Accx
-		PitchAcc = data.Accy
-		# sensor.xRot_temp = 0.9 * (sensor.xRot_temp + (RollAcc * timer.dtC)) + (0.1 * data.Gx)
-		# Only acc data
-		self.xRot_temp = self.xRot_temp + (RollAcc * timer.dtC)
-		self.xRot = round(self.xRot_temp, 1)
-		# sensor.yRot_temp = 0.9 * (sensor.yRot_temp + (PitchAcc * timer.dtC)) + (0.1 * data.Gy)
-		# Only acc data
-		self.yRot_temp = self.yRot_temp + (PitchAcc * timer.dtC)
-		self.yRot = round(self.yRot_temp, 1)
-
-		connection.gyro = str(self.xRot) , str(self.yRot) ,  str(self.zAccel)	# Response to server
 ###// END OF PID CLASS //################################################
 
 #########################################################################	
@@ -590,7 +531,65 @@ class drone:
 	
 	#########################################################################	
 	### MPU-6050 GYROSCOPE FUNCTIONS ########################################
+	def tuneCalibration(self):
+		time_start = time.clock() * 1000
+		timeChange = time_start - self.lastCalib
+		if timeChange >= 20:
+			if demand.forward == '1' and demand.backward == '0':
+				self.acc_offset_x += 0.1
+				self.acc_offset_y += -0.1
+			if demand.backward == '1' and demand.forward == '0':
+				self.acc_offset_x += -0.1
+				self.acc_offset_y += 0.1
+			if demand.left == '1' and demand.right == '0':
+				self.acc_offset_x += 0.1
+				self.acc_offset_y += 0.1
+			if demand.right == '1' and demand.left == '0':
+				self.acc_offset_x += -0.1
+				self.acc_offset_y += -0.1
+			
+			self.mpu6050.readOffsets(self.acc_offset_x, self.acc_offset_y, self.acc_offset_z, self.gyro_offset_x, self.gyro_offset_y, self.gyro_offset_z, self.__k_norm)
+			self.lastCalib = time_start
 
+	def imuConvertData(self):											# Convert raw IMU data into actual angles
+		now = time.clock() * 1000
+		timer.dtC = (now - timer.acc_dt_start) / 1000
+		timer.acc_dt_start = time.clock() * 1000
+		newData = False
+		while newData != True:
+			try:
+				while (self.mpu6050.readStatus() & 1)==0 :
+					pass
+			except:
+				pass
+			try: 
+				data = self.mpu6050.readData()
+				newData = True
+			except:
+				print("data not found")
+
+		data.Gx = (data.Gx - self.gyro_offset_x) * 100
+		data.Gy = (data.Gy - self.gyro_offset_y) * 100 
+		data.Gz = (data.Gz - self.gyro_offset_z) * 100
+		data.Accx = (data.Accx - self.acc_offset_x)
+		data.Accy = (data.Accy - self.acc_offset_y)
+		data.Accz = (data.Accz - self.acc_offset_z)
+		data.Gx = -data.Gx
+		data.Gy = -data.Gy
+
+		self.zAccel = round(data.Accz,1)
+		RollAcc = -data.Accx
+		PitchAcc = data.Accy
+		# sensor.xRot_temp = 0.9 * (sensor.xRot_temp + (RollAcc * timer.dtC)) + (0.1 * data.Gx)
+		# Only acc data
+		self.xRot_temp = self.xRot_temp + (RollAcc * timer.dtC)
+		self.xRot = round(self.xRot_temp, 1)
+		# sensor.yRot_temp = 0.9 * (sensor.yRot_temp + (PitchAcc * timer.dtC)) + (0.1 * data.Gy)
+		# Only acc data
+		self.yRot_temp = self.yRot_temp + (PitchAcc * timer.dtC)
+		self.yRot = round(self.yRot_temp, 1)
+
+		connection.gyro = str(self.xRot) , str(self.yRot) ,  str(self.zAccel)	# Response to server
 		
 	#########################################################################
 	
@@ -854,7 +853,7 @@ class drone:
 #		calibrate_ESC()
 #		startThreads()
 #		terminal()		#which are you using?
-		noTerminal()
+		#self.noTerminal()
 	
 	def startThreads(self):
 		try:

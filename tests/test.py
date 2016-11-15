@@ -15,8 +15,14 @@ class droneTests(unittest.TestCase):
         del self.drone
         print ("tearDown")
 
+    #####################################################
+    # DEMAND class tests                                #
+    #####################################################
+
+    #def test_check_demand(self):
+
    ######################################################
-   # PID class tests
+   #                PID class tests                     #
    ######################################################
 
     def test_pidUpdateX_updatesFromKp(self):
@@ -130,23 +136,6 @@ class droneTests(unittest.TestCase):
         self.assertEqual(self.drone.pid.ki_yaw, 1, "SetTunings_yaw doesn't accept ki_yaw-value")
         self.assertEqual(self.drone.pid.kd_yaw, 1, "SetTunings_yaw doesn't accept kd_yaw-value")
 
-
-   ######################################################
-   #           DRONE class tests (main)                 #
-   ######################################################
-
-
-
-   ######################################################
-   #           CONNECTION class tests                   #
-   ######################################################
-
-    #def test_setIP_setsIp(self):
-
-    #def test_connect_opensConnection(self): # Needs python SocketIO-client 0.6.4 to work
-    #    self.drone.connection.connect()
-
-
     ######################################################
     #             var_gyro class tests                   #
     ######################################################
@@ -154,17 +143,78 @@ class droneTests(unittest.TestCase):
     #def test_imuInit_wakesImu(self):
     #   self.drone.sensor.imuInit()      
 
-    def test_getEulerAngles_pitchIsNumber(self):
+    def test_getEulerAngles_pitchReturnsNumber(self):
         pitch, roll, yaw = self.drone.sensor.getEulerAngles(10, 10, 1)
         self.assertIsInstance(pitch, numbers.Number, "sensor.getEulerAngles pitch doesn't return numerical value")
 
-    def test_getEulerAngles_rollIsNumber(self):
+    def test_getEulerAngles_rollReturnsNumber(self):
         pitch, roll, yaw = self.drone.sensor.getEulerAngles(10, 10, 1)
         self.assertIsInstance(roll, numbers.Number, "sensor.getEulerAngles roll doesn't return numerical value")
 
-    def test_getEulerAngles_yawIsNumber(self):
+    def test_getEulerAngles_yawReturnsNumber(self):
         pitch, roll, yaw = self.drone.sensor.getEulerAngles(10, 10, 1)
         self.assertIsInstance(yaw, numbers.Number, "sensor.getEulerAngles yaw doesn't return numerical value")
+
+    #def test_imuCalibrate_(self):
+        #kaikki data toimii
+
+    #def test_imuSaveCalibration_savesDataToFile(self):
+
+    #def test_imuLoadCalibration_loadsDataFromFile(self):
+
+    ######################################################
+    #               Motco class tests                    #
+    ######################################################
+
+    def test_init_worksCorrectly(self):
+        # Motor assignment to GPIO ports
+        self.assertEquals(self.drone.motco.MOTOR1, 4, "Motor1 GPIO port incorrect, should be 4")
+        self.assertEquals(self.drone.motco.MOTOR2, 17, "Motor2 GPIO port incorrect, should be 17")
+        self.assertEquals(self.drone.motco.MOTOR3, 27, "Motor3 GPIO port incorrect, should be 27")
+        self.assertEquals(self.drone.motco.MOTOR4, 22, "Motor4 GPIO port incorrect, should be 22")
+        # Main pulsewidth variables
+        self.assertEquals(self.drone.motco.motorFL_pw, 1000, "MotorFL_pw formatted wrong, should be 1000")
+        self.assertEquals(self.drone.motco.motorFR_pw, 1000, "MotorFR_pw formatted wrong, should be 1000")
+        self.assertEquals(self.drone.motco.motorRR_pw, 1000, "MotorRR_pw formatted wrong, should be 1000")
+        self.assertEquals(self.drone.motco.motorRL_pw, 1000, "MotorRL_pw formatted wrong, should be 1000")
+        # Minimum and maximum pulsewidths
+        self.assertEquals(self.drone.motco.MIN_PW, 1000, "MIN_PW formatted wrong, should be 1000")
+        self.assertEquals(self.drone.motco.MAX_PW, 1999, "MAX_PW formatted wrong, should be 1000")
+
+    ######################################################
+    #           CONNECTION class tests                   #
+    ######################################################
+
+    def test_init_worksCorrectly(self):
+        self.assertEquals(self.drone.connection.gyro, '', "gyro variable formatted wrong in connection")
+        self.assertEquals(self.drone.connection.throttle, 0, "throttle variable formatted wrong in connection")
+        self.assertEquals(self.drone.connection.ip, 0, "ip variable formatted wrong in connection")
+        
+    #def test_setIP_setsIp(self):
+
+    #def test_connect_opensConnection(self): # Needs python SocketIO-client 0.6.4 to work
+    #    self.drone.connection.connect()
+
+    #####################################################
+    # Drone class tests                                 #
+    #####################################################
+
+    #####
+    # Motor functions
+
+    #def test_calibrate_ESC(self):
+
+    #def test_motorcontrol_adjustsPulsewidth(self):
+
+    #####
+    # Connection functions
+
+    #def test_server_response_sendKeymapToKeymapper
+        
+
+
+
+
 
 #    @patch('self.drone.sensor.mpu6050.readStatus')
  #   def test_imuCalibrate_updatesGyroOffsetX(self, mock_function):
