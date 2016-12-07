@@ -1,5 +1,5 @@
 import unittest
-#from unittest.mock import MagicMock
+from unittest.mock import MagicMock
 import numbers
 from drone import *
 
@@ -186,9 +186,9 @@ class droneTests(unittest.TestCase):
     ######################################################
 
     def test_init_worksCorrectly(self):
-        self.assertEquals(self.drone.connection.gyro, '', "gyro variable formatted wrong in connection")
-        self.assertEquals(self.drone.connection.throttle, 0, "throttle variable formatted wrong in connection")
-        self.assertEquals(self.drone.connection.ip, 0, "ip variable formatted wrong in connection")
+        self.assertEqual(self.drone.connection.gyro, '', "gyro variable formatted wrong in connection")
+        self.assertEqual(self.drone.connection.throttle, 0, "throttle variable formatted wrong in connection")
+        self.assertEqual(self.drone.connection.ip, 0, "ip variable formatted wrong in connection")
         
     #def test_setIP_setsIp(self):
 
@@ -209,7 +209,25 @@ class droneTests(unittest.TestCase):
     #####
     # Connection functions
 
-    #def test_server_response_sendKeymapToKeymapper
+    #def test_server_response_sendKeymapToKeymapper(self):
+
+    #def test_server_keymapper_setsDemands(self):
+
+    #def test_server_adjustpid_p_passesVariableToFunction(self):
+
+    #def test_server_adjustpid_i_passesVariableToFunction(self):
+
+    #def test_server_adjustpid_d_passesVariableToFunction(self):
+
+    #def test_server_adjustpidmax_passesVariableToFunction(self):
+
+    #def test_server_calibration_passesVariableToFunction(self):
+
+    #def test_server_calibration_tuning_adjustsCalibValues(self):
+
+    #def test_failsafe_reset_resetsThrottle(self):
+
+    #def test_failsafe_cutsThrottle(self):
         
 
 

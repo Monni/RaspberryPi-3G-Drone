@@ -9,7 +9,7 @@
 
 import sys
 import os 													# clearia varten
-import thread
+import _thread
 import time
 #import smbus
 import math
